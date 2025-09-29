@@ -1,0 +1,48 @@
+# NATS Server Helm Values
+# Documentation: https://github.com/nats-io/k8s/tree/main/helm/charts/nats
+
+# NATS configuration
+config:
+  # Enable clustering - minimum requirement for JetStream
+  cluster:
+    enabled: true
+    replicas: 3
+
+  # JetStream configuration - minimum production setup
+  jetstream:
+    enabled: true
+    fileStore:
+      pvc:
+        size: 10Gi
+
+# Container configuration - following docs recommendations
+container:
+  env:
+    # Should be ~80% of memory limit (docs recommendation)
+    GOMEMLIMIT: "3435973836"
+  merge:
+    # Recommended minimum: at least 2 CPU cores and 8Gi memory for production JetStream clusters
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+
+service:
+  ports:
+    monitor:
+      enabled: true
+
+
+# Pod template for topology spread
+podTemplate:
+  topologySpreadConstraints:
+    kubernetes.io/hostname:
+      maxSkew: 1
+      whenUnsatisfiable: DoNotSchedule
+
+# Include nats-box for debugging ML pipeline
+natsBox:
+  enabled: true

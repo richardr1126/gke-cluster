@@ -23,7 +23,7 @@ cluster_manager_client = container_v1.ClusterManagerClient(credentials=credentia
 # Configuration
 DEFAULT_CLUSTER_NAME = "cost-optimized-cluster"
 ZONE = "us-central1-b"  # Single zone for cost optimization
-MACHINE_TYPE = "e2-standard-2"  # Low-cost machine (2 vCPUs, 8GB RAM)
+MACHINE_TYPE = "t2d-standard-2"  # Ultra-low-cost machine (2 vCPUs, 8GB RAM)
 NODE_COUNT = 0  # Start with 0 nodes for cost optimization
 DISK_SIZE_GB = 20  # Minimum disk size
 DISK_TYPE = "pd-standard"  # Standard persistent disk (cheapest)
@@ -144,14 +144,14 @@ def create_gke_cluster(cluster_name, enable_spot=True):
         print(f"   kubectl get pods --all-namespaces  # View all pods")
         print(f"   kubectl cluster-info          # View cluster information")
         print(f"\n💡 Node scaling commands:")
-        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 3  # Scale up to 3 nodes")
+        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 5  # Scale up to 5 nodes")
         print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 0  # Scale back to 0 (save money)")
         
         # Cost estimation
         print(f"\n💰 Estimated monthly cost (spot instances):")
-        print(f"   - 3 x e2-standard-2 spot nodes: ~$15-25/month")
-        print(f"   - 60GB standard persistent disk: ~$2.40/month")
-        print(f"   - Total estimated: ~$17-27/month")
+        print(f"   - 5 x t2d-standard-2 spot nodes: ~$20-33/month")
+        print(f"   - 100GB standard persistent disk: ~$4/month")
+        print(f"   - Total estimated: ~$24-37/month")
         print(f"   Note: Spot instances can be terminated, but offer 60-91% cost savings!")
         
         return True
@@ -243,7 +243,7 @@ def scale_cluster(cluster_name, target_node_count=0):
         print("\n⏳ Waiting for scaling operations to complete...")
         if target_node_count == 0:
             print("💡 Scaling to 0 will stop all compute costs but keep the cluster configuration.")
-            print("   You can scale back up later with: python gke-cluster.py scale --name {cluster_name} --nodes 3")
+            print("   You can scale back up later with: python gke-cluster.py scale --name {cluster_name} --nodes 5")
         
         all_success = True
         for operation, pool_name in operations:
@@ -270,7 +270,7 @@ def scale_cluster(cluster_name, target_node_count=0):
             print(f"\n✅ Cluster '{cluster_name}' scaled successfully to {target_node_count} nodes!")
             if target_node_count == 0:
                 print("💰 Compute costs are now $0 (you only pay for the control plane if using multiple zones)")
-                print("🔄 To scale back up: python gke-cluster.py scale --name {cluster_name} --nodes 3")
+                print("🔄 To scale back up: python gke-cluster.py scale --name {cluster_name} --nodes 5")
             return True
         else:
             print(f"\n⚠️  Some scaling operations failed. Check the output above.")

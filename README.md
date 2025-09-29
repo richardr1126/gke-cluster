@@ -6,12 +6,12 @@ This script creates a Google Kubernetes Engine (GKE) cluster optimized for cost 
 
 - **Cluster Type**: Single zonal cluster (cost-optimized)
 - **Zone**: us-central1-b
-- **Machine Type**: e2-standard-2 (2 vCPUs, 8GB RAM) - cheapest option with 8GB RAM
+- **Machine Type**: t2d-standard-2 (2 vCPUs, 8GB RAM) - ultra-cheapest option with 8GB RAM
 - **Initial Node Count**: 0 nodes (scale up as needed)
 - **Instance Type**: Spot instances (preemptible) for 60-91% cost savings
 - **Disk**: 20GB standard persistent disk per node
 - **Scaling**: Manual scaling from 0-N nodes
-- **Estimated Cost**: $0 when scaled to 0 nodes, ~$17-27/month when scaled to 3 nodes
+- **Estimated Cost**: $0 when scaled to 0 nodes, ~$24-37/month when scaled to 5 nodes
 
 ## Features
 
@@ -41,7 +41,11 @@ This script creates a Google Kubernetes Engine (GKE) cluster optimized for cost 
 
 2. **Python Dependencies**: Install required packages
    ```bash
-   pip install google-cloud-container google-auth
+   # Install from pyproject.toml
+   pip install -e .
+   
+   # Or install manually
+   pip install google-cloud-container>=2.59.0
    ```
 
 3. **Enable APIs**: Make sure the following APIs are enabled
@@ -68,8 +72,8 @@ python gke-cluster.py create --no-spot
 ### Scale a Cluster
 
 ```bash
-# Scale up to 3 nodes
-python gke-cluster.py scale --name cost-optimized-cluster --nodes 3
+# Scale up to 5 nodes
+python gke-cluster.py scale --name cost-optimized-cluster --nodes 5
 
 # Scale down to 0 nodes (save money)
 python gke-cluster.py scale --nodes 0
@@ -115,9 +119,9 @@ kubectl get nodes
 - **Best for**: Development, testing, fault-tolerant workloads
 
 ### Machine Type Selection
-- **e2-standard-2**: Cheapest option with 8GB RAM
+- **t2d-standard-2**: Ultra-cheapest option with 8GB RAM
 - **Resources**: 2 vCPUs, 8GB RAM per node
-- **Total cluster**: 6 vCPUs, 24GB RAM across 3 nodes
+- **Total cluster**: 10 vCPUs, 40GB RAM across 5 nodes
 
 ### Storage Optimization
 - **Standard Persistent Disk**: Cheapest disk option
@@ -142,7 +146,7 @@ The cluster enables resource usage export to help track costs:
 The cluster uses manual node scaling for precise cost control:
 ```bash
 # Scale cluster nodes up
-python gke-cluster.py scale --nodes 3
+python gke-cluster.py scale --nodes 5
 
 # Scale cluster nodes down to save money
 python gke-cluster.py scale --nodes 0
@@ -170,7 +174,7 @@ Check your project quotas in the Google Cloud Console under IAM & Admin > Quotas
 ### Cluster Creation Fails
 - Check project permissions
 - Verify zone availability
-- Ensure sufficient quota for e2-standard-2 instances
+- Ensure sufficient quota for t2d-standard-2 instances
 
 ## Security Best Practices
 
@@ -188,7 +192,7 @@ The script includes several security optimizations:
 python gke-cluster.py create
 
 # 2. Scale up the cluster to have nodes
-python gke-cluster.py scale --nodes 3
+python gke-cluster.py scale --nodes 5
 
 # 3. Connect to the cluster
 gcloud container clusters get-credentials cost-optimized-cluster --zone us-central1-b
@@ -213,9 +217,9 @@ python gke-cluster.py delete  # Delete completely
 ## Cost Estimation
 
 **Monthly costs (approximate, spot instances):**
-- 3 x e2-standard-2 spot nodes: $15-25
-- 60GB standard persistent disk: $2.40
+- 5 x t2d-standard-2 spot nodes: $20-33
+- 100GB standard persistent disk: $4
 - Load balancer (if used): $18-20
-- **Total: ~$17-47/month**
+- **Total: ~$24-57/month**
 
 *Prices may vary by region and are subject to change. Spot instance pricing is typically 60-91% less than regular instances.*

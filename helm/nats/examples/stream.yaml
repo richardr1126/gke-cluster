@@ -1,0 +1,33 @@
+# Example NATS JetStream Stream
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: orders
+  namespace: nats
+spec:
+  name: orders
+  subjects:
+    - "orders.*"
+  storage: file
+  replicas: 3
+  retention: limits
+  maxAge: 24h
+  maxBytes: 1073741824  # 1GB
+  maxMsgs: 100000
+  duplicateWindow: 2m
+---
+# Alternative example with different configuration
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: events
+  namespace: nats
+spec:
+  name: events
+  subjects:
+    - "events.>"
+  storage: file
+  replicas: 3
+  retention: workqueue
+  maxAge: 168h  # 7 days
+  maxBytes: 5368709120  # 5GB

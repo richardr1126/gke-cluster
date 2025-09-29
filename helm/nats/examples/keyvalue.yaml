@@ -1,0 +1,29 @@
+# Example NATS JetStream Key-Value Store
+apiVersion: jetstream.nats.io/v1beta2
+kind: KeyValue
+metadata:
+  name: config
+  namespace: nats
+spec:
+  bucket: config
+  description: "Application configuration store"
+  maxBytes: 104857600  # 100MB
+  history: 10
+  ttl: 24h
+  storage: file
+  replicas: 3
+---
+# Session store example
+apiVersion: jetstream.nats.io/v1beta2
+kind: KeyValue
+metadata:
+  name: sessions
+  namespace: nats
+spec:
+  bucket: sessions
+  description: "User session store"
+  maxBytes: 52428800  # 50MB
+  history: 1
+  ttl: 1h
+  storage: memory
+  replicas: 1

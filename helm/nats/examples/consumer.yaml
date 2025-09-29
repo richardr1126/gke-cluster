@@ -1,0 +1,29 @@
+# Example NATS JetStream Pull Consumer
+apiVersion: jetstream.nats.io/v1beta2
+kind: Consumer
+metadata:
+  name: orders-processor
+  namespace: nats
+spec:
+  streamName: orders
+  durableName: orders-processor
+  deliverPolicy: all
+  ackPolicy: explicit
+  ackWait: 30s
+  maxDeliver: 3
+  filterSubject: "orders.created"
+  replayPolicy: instant
+---
+# Example Push Consumer
+apiVersion: jetstream.nats.io/v1beta2
+kind: Consumer
+metadata:
+  name: orders-notifier
+  namespace: nats
+spec:
+  streamName: orders
+  durableName: orders-notifier
+  deliverPolicy: new
+  ackPolicy: none
+  deliverSubject: "notifications.orders"
+  filterSubject: "orders.completed"
