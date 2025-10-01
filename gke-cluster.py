@@ -281,18 +281,22 @@ def scale_cluster(cluster_name, target_node_count=0, pool_name=None):
             operation = cluster_manager_client.set_node_pool_size(request=scale_request)
             operations.append((operation, node_pool.name))
         
-        # Wait for all operations to complete
-        print("\n⏳ Waiting for scaling operations to complete...")
+        # Wait for all operations to complete (concurrently)
+        print("\n⏳ Waiting for all scaling operations to complete...")
         if target_node_count == 0:
             print("💡 Scaling to 0 will stop all compute costs but keep the cluster configuration.")
             print("   You can scale back up later with: python gke-cluster.py scale --name {cluster_name} --nodes 5")
         
-        all_success = True
-        for operation, pool_name in operations:
-            operation_name = operation.name
-            print(f"   Scaling node pool '{pool_name}'...")
-            
-            while True:
+        # Track operation status for all pools
+        operation_status = {pool_name: {"done": False, "success": None} for _, pool_name in operations}
+        
+        # Poll all operations together
+        while not all(status["done"] for status in operation_status.values()):
+            for operation, pool_name in operations:
+                if operation_status[pool_name]["done"]:
+                    continue
+                    
+                operation_name = operation.name
                 op_request = container_v1.GetOperationRequest(
                     name=f"projects/{project}/locations/{ZONE}/operations/{operation_name.split('/')[-1]}"
                 )
@@ -300,13 +304,18 @@ def scale_cluster(cluster_name, target_node_count=0, pool_name=None):
                 
                 if current_op.status == container_v1.Operation.Status.DONE:
                     print(f"   ✅ Node pool '{pool_name}' scaled successfully!")
-                    break
+                    operation_status[pool_name]["done"] = True
+                    operation_status[pool_name]["success"] = True
                 elif current_op.status == container_v1.Operation.Status.ABORTING:
                     print(f"   ❌ Scaling failed for node pool '{pool_name}': {current_op.status_message}")
-                    all_success = False
-                    break
-                else:
-                    time.sleep(10)  # Check every 10 seconds for scaling operations
+                    operation_status[pool_name]["done"] = True
+                    operation_status[pool_name]["success"] = False
+            
+            # Sleep only if there are still operations in progress
+            if not all(status["done"] for status in operation_status.values()):
+                time.sleep(10)  # Check every 10 seconds for scaling operations
+        
+        all_success = all(status["success"] for status in operation_status.values())
         
         if all_success:
             pool_info = f" (pool: {pool_name})" if pool_name else " (all pools)"
