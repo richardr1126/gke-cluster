@@ -24,8 +24,10 @@ cluster_manager_client = container_v1.ClusterManagerClient(credentials=credentia
 DEFAULT_CLUSTER_NAME = "cost-optimized-cluster"
 ZONE = "us-central1-b"  # Single zone for cost optimization
 MACHINE_TYPE = "t2d-standard-2"  # Ultra-low-cost machine (2 vCPUs, 8GB RAM)
+MACHINE_TYPE_ML = "n2d-highcpu-4"  # Compute-optimized for ML inference (4 vCPUs, 4GB RAM)
 NODE_COUNT = 0  # Start with 0 nodes for cost optimization
 DISK_SIZE_GB = 20  # Minimum disk size
+DISK_SIZE_GB_ML = 80  # Larger disk for ML node pool
 DISK_TYPE = "pd-standard"  # Standard persistent disk (cheapest)
 
 def create_gke_cluster(cluster_name, enable_spot=True):
@@ -45,9 +47,9 @@ def create_gke_cluster(cluster_name, enable_spot=True):
         print(f"Spot Instances: {enable_spot}")
         print(f"Disk: {DISK_SIZE_GB}GB {DISK_TYPE}")
         
-        # Configure a minimal node config with cost savers
+        # Configure a minimal node config with cost savers for default pool
         # Spot instances (preemptible) enabled by default
-        node_config = container_v1.NodeConfig(
+        node_config_default = container_v1.NodeConfig(
             machine_type=MACHINE_TYPE,
             disk_size_gb=DISK_SIZE_GB,
             disk_type=DISK_TYPE,
@@ -55,10 +57,34 @@ def create_gke_cluster(cluster_name, enable_spot=True):
             image_type="COS_CONTAINERD",
         )
         
-        # Configure a minimal node pool with no autoscaling, starting with 0 nodes
-        node_pool = container_v1.NodePool(
+        # Configure ML node config optimized for CPU inference (ONNX INT8 models)
+        # n2d-highcpu-4: 4 vCPUs, 4GB RAM, AMD EPYC Rome for good INT8 performance
+        node_config_ml = container_v1.NodeConfig(
+            machine_type=MACHINE_TYPE_ML,
+            disk_size_gb=DISK_SIZE_GB_ML,
+            disk_type=DISK_TYPE,
+            spot=enable_spot,
+            taints=[
+                container_v1.NodeTaint(
+                    key="dedicated",
+                    value="ml",
+                    effect=container_v1.NodeTaint.Effect.NO_SCHEDULE,
+                )
+            ],
+            image_type="COS_CONTAINERD",
+        )
+        
+        # Configure default node pool with no autoscaling, starting with 0 nodes
+        node_pool_default = container_v1.NodePool(
             name="default-pool",
-            config=node_config,
+            config=node_config_default,
+            initial_node_count=0,
+        )
+        
+        # Configure ML inference node pool optimized for DistilBERT sentiment analysis
+        node_pool_ml = container_v1.NodePool(
+            name="ml-pool",
+            config=node_config_ml,
             initial_node_count=0,
         )
         
@@ -69,7 +95,7 @@ def create_gke_cluster(cluster_name, enable_spot=True):
         cluster = container_v1.Cluster(
             name=cluster_name,
             locations=[ZONE],
-            node_pools=[node_pool],
+            node_pools=[node_pool_default, node_pool_ml],
             monitoring_config=container_v1.MonitoringConfig(
                 managed_prometheus_config=container_v1.ManagedPrometheusConfig(
                     enabled=False
@@ -144,14 +170,17 @@ def create_gke_cluster(cluster_name, enable_spot=True):
         print(f"   kubectl get pods --all-namespaces  # View all pods")
         print(f"   kubectl cluster-info          # View cluster information")
         print(f"\n💡 Node scaling commands:")
-        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 5  # Scale up to 5 nodes")
-        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 0  # Scale back to 0 (save money)")
+        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 5  # Scale all pools to 5 nodes")
+        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 5 --pool default-pool  # Scale specific pool")
+        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 0  # Scale all pools to 0 (save money)")
+        print(f"\n🔒 ML pool taint: dedicated=ml:NoSchedule (only workloads with matching toleration can run there)")
         
         # Cost estimation
         print(f"\n💰 Estimated monthly cost (spot instances):")
-        print(f"   - 5 x t2d-standard-2 spot nodes: ~$20-33/month")
+        print(f"   - default-pool (5 x t2d-standard-2 spot): ~$20-33/month")
+        print(f"   - ml-pool (3 x n2d-highcpu-4 spot): ~$15-25/month")
         print(f"   - 100GB standard persistent disk: ~$4/month")
-        print(f"   - Total estimated: ~$24-37/month")
+        print(f"   - Total estimated: ~$39-62/month")
         print(f"   Note: Spot instances can be terminated, but offer 60-91% cost savings!")
         
         return True
@@ -196,12 +225,13 @@ def delete_cluster(cluster_name):
         print(f"❌ Error deleting cluster: {e}")
         return False
 
-def scale_cluster(cluster_name, target_node_count=0):
-    """Scale all node pools in a GKE cluster to the specified number of nodes.
+def scale_cluster(cluster_name, target_node_count=0, pool_name=None):
+    """Scale node pool(s) in a GKE cluster to the specified number of nodes.
     
     Args:
         cluster_name: Name of the cluster to scale
         target_node_count: Target number of nodes (default: 0 for cost optimization)
+        pool_name: Specific node pool to scale (default: None for all pools)
     """
     try:
         print(f"Scaling cluster '{cluster_name}' to {target_node_count} nodes...")
@@ -222,10 +252,22 @@ def scale_cluster(cluster_name, target_node_count=0):
             print(f"❌ Error: Cluster is not in RUNNING state (current: {cluster.status})")
             return False
         
-        print(f"Found cluster with {len(cluster.node_pools)} node pool(s):")
+        # Filter node pools if a specific pool was requested
+        pools_to_scale = cluster.node_pools
+        if pool_name:
+            pools_to_scale = [p for p in cluster.node_pools if p.name == pool_name]
+            if not pools_to_scale:
+                print(f"❌ Error: Node pool '{pool_name}' not found in cluster.")
+                print(f"   Available pools: {', '.join([p.name for p in cluster.node_pools])}")
+                return False
+            print(f"Scaling specific node pool: {pool_name}")
+        else:
+            print(f"Scaling all {len(cluster.node_pools)} node pool(s)")
+        
+        print(f"Found {len(pools_to_scale)} node pool(s) to scale:")
         
         operations = []
-        for node_pool in cluster.node_pools:
+        for node_pool in pools_to_scale:
             current_count = node_pool.initial_node_count
             print(f"  - {node_pool.name}: {current_count} nodes -> {target_node_count} nodes")
             
@@ -267,10 +309,15 @@ def scale_cluster(cluster_name, target_node_count=0):
                     time.sleep(10)  # Check every 10 seconds for scaling operations
         
         if all_success:
-            print(f"\n✅ Cluster '{cluster_name}' scaled successfully to {target_node_count} nodes!")
+            pool_info = f" (pool: {pool_name})" if pool_name else " (all pools)"
+            print(f"\n✅ Cluster '{cluster_name}' scaled successfully to {target_node_count} nodes{pool_info}!")
             if target_node_count == 0:
-                print("💰 Compute costs are now $0 (you only pay for the control plane if using multiple zones)")
-                print("🔄 To scale back up: python gke-cluster.py scale --name {cluster_name} --nodes 5")
+                if pool_name:
+                    print(f"💰 Compute costs reduced for pool '{pool_name}'")
+                    print(f"🔄 To scale back up: python gke-cluster.py scale --name {cluster_name} --nodes 5 --pool {pool_name}")
+                else:
+                    print("💰 Compute costs are now $0 (you only pay for the control plane if using multiple zones)")
+                    print(f"🔄 To scale back up: python gke-cluster.py scale --name {cluster_name} --nodes 5")
             return True
         else:
             print(f"\n⚠️  Some scaling operations failed. Check the output above.")
@@ -327,6 +374,10 @@ def main():
         default=0,
         help="Number of nodes to scale to (default: 0 for cost optimization)"
     )
+    parser.add_argument(
+        "--pool",
+        help="Specific node pool to scale (default: scale all pools)"
+    )
     
     args = parser.parse_args()
     
@@ -346,7 +397,7 @@ def main():
     elif args.action == "list":
         list_clusters()
     elif args.action == "scale":
-        success = scale_cluster(args.name, args.nodes)
+        success = scale_cluster(args.name, args.nodes, args.pool)
         if not success:
             sys.exit(1)
 
