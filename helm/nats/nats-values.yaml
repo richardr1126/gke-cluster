@@ -24,10 +24,10 @@ container:
     # Recommended minimum: at least 2 CPU cores and 8Gi memory for production JetStream clusters
     resources:
       requests:
-        cpu: "1"
+        cpu: "500m"
         memory: 2Gi
       limits:
-        cpu: "2"
+        cpu: "1500m"
         memory: 4Gi
 
 service:
