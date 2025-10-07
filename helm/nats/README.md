@@ -7,7 +7,7 @@ This directory contains NATS JetStream configuration and examples for the GKE cl
 nats/
 ├── install.sh           # Installation script
 ├── nats-values.yaml     # NATS server Helm values
-├── gateway.yaml         # Gateway configuration for monitoring
+├── httproute.yaml       # Gateway HTTPRoute configuration for monitoring
 ├── README.md           # This file
 └── examples/           # Example JetStream resources
     ├── stream.yaml     # Stream examples
@@ -25,7 +25,7 @@ Run the installation script:
 This will install:
 - NATS server with JetStream enabled (3 replicas for HA)
 - NACK (NATS JetStream Controller) for managing streams and consumers via Kubernetes CRDs
-- Gateway route for monitoring at https://nats.gke.richardr.dev
+- Gateway HTTPRoute for monitoring at https://nats.gke.richardr.dev
 
 ## Configuration
 

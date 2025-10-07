@@ -27,8 +27,8 @@ helm upgrade --install nack nats/nack \
   --set jetstream.nats.url=nats://nats.nats.svc.cluster.local:4222 \
   --wait
 
-echo "🌐 Creating NATS monitoring Gateway resources..."
-kubectl apply -f gateway.yaml
+echo "🌐 Creating NATS monitoring Gateway HTTPRoute resource..."
+kubectl apply -f httproute.yaml
 
 echo "✅ NATS JetStream and NACK controller installed successfully!"
 echo "📊 NATS monitoring available at: https://nats.gke.richardr.dev"
