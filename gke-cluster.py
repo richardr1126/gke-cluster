@@ -318,13 +318,16 @@ def scale_cluster(cluster_name, target_node_count=0, pool_name=None):
         all_success = all(status["success"] for status in operation_status.values())
         
         if all_success:
-            pool_info = f" (pool: {pool_name})" if pool_name else " (all pools)"
-            print(f"\n✅ Cluster '{cluster_name}' scaled successfully to {target_node_count} nodes{pool_info}!")
-            if target_node_count == 0:
-                if pool_name:
+            if pool_name:
+                print(f"\n✅ Cluster '{cluster_name}' scaled successfully to {target_node_count} nodes (pool: {pool_name})!")
+                if target_node_count == 0:
                     print(f"💰 Compute costs reduced for pool '{pool_name}'")
                     print(f"🔄 To scale back up: python gke-cluster.py scale --name {cluster_name} --nodes 5 --pool {pool_name}")
-                else:
+            else:
+                scaled_pools = [name for _, name in operations]
+                print(f"\n✅ Cluster '{cluster_name}' scaled successfully to {target_node_count} nodes (all {len(scaled_pools)} pools)!")
+                print(f"   Scaled pools: {', '.join(scaled_pools)}")
+                if target_node_count == 0:
                     print("💰 Compute costs are now $0 (you only pay for the control plane if using multiple zones)")
                     print(f"🔄 To scale back up: python gke-cluster.py scale --name {cluster_name} --nodes 5")
             return True
