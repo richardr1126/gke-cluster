@@ -25,7 +25,8 @@ DEFAULT_CLUSTER_NAME = "cost-optimized-cluster"
 ZONE = "us-central1-b"  # Single zone for cost optimization
 MACHINE_TYPE = "t2d-standard-2"  # Ultra-low-cost machine (2 vCPUs, 8GB RAM)
 MACHINE_TYPE_ML = "n2d-highcpu-4"  # Compute-optimized for ML inference (4 vCPUs, 4GB RAM)
-NODE_COUNT = 0  # Start with 0 nodes for cost optimization
+NODE_COUNT = 3  # Start with 3 nodes for cost optimization
+ML_MAX_NODES = 9  # Max nodes for ML pool autoscaling
 DISK_SIZE_GB = 20  # Minimum disk size
 DISK_SIZE_GB_ML = 80  # Larger disk for ML node pool
 DISK_TYPE = "pd-standard"  # Standard persistent disk (cheapest)
@@ -40,12 +41,24 @@ def create_gke_cluster(cluster_name, enable_spot=True):
     Everything else is left to GKE defaults to reduce complexity and drift.
     """
     try:
-        print(f"Creating GKE cluster '{cluster_name}' in project '{project}'...")
-        print(f"Zone: {ZONE}")
-        print(f"Machine Type: {MACHINE_TYPE} (2 vCPUs, 8GB RAM)")
-        print(f"Initial Node Count: {NODE_COUNT} (no autoscaling)")
-        print(f"Spot Instances: {enable_spot}")
-        print(f"Disk: {DISK_SIZE_GB}GB {DISK_TYPE}")
+        print(f"\n{'='*70}")
+        print(f"🚀 Creating GKE Cluster: '{cluster_name}'")
+        print(f"{'='*70}")
+        print(f"\n📍 Cluster Configuration:")
+        print(f"   Project: {project}")
+        print(f"   Zone: {ZONE}")
+        print(f"\n🖥️  Default Node Pool:")
+        print(f"   Machine Type: {MACHINE_TYPE} (2 vCPUs, 8GB RAM)")
+        print(f"   Initial Nodes: {NODE_COUNT}")
+        print(f"   Spot Instances: {'✅ Enabled' if enable_spot else '❌ Disabled'}")
+        print(f"   Disk: {DISK_SIZE_GB}GB {DISK_TYPE}")
+        print(f"\n🤖 ML Node Pool:")
+        print(f"   Machine Type: {MACHINE_TYPE_ML} (4 vCPUs, 4GB RAM)")
+        print(f"   Initial Nodes: {NODE_COUNT}")
+        print(f"   Autoscaling: 0-{ML_MAX_NODES} nodes")
+        print(f"   Spot Instances: {'✅ Enabled' if enable_spot else '❌ Disabled'}")
+        print(f"   Disk: {DISK_SIZE_GB_ML}GB {DISK_TYPE}")
+        print(f"   Taint: dedicated=ml:NoSchedule")
         
         # Configure a minimal node config with cost savers for default pool
         # Spot instances (preemptible) enabled by default
@@ -78,14 +91,20 @@ def create_gke_cluster(cluster_name, enable_spot=True):
         node_pool_default = container_v1.NodePool(
             name="default-pool",
             config=node_config_default,
-            initial_node_count=0,
+            initial_node_count=NODE_COUNT,
         )
         
         # Configure ML inference node pool optimized for DistilBERT sentiment analysis
+        # Enable autoscaling from 3 to 9 nodes for balanced performance and cost
         node_pool_ml = container_v1.NodePool(
             name="ml-pool",
             config=node_config_ml,
-            initial_node_count=0,
+            initial_node_count=NODE_COUNT,
+            autoscaling=container_v1.NodePoolAutoscaling(
+                enabled=True,
+                min_node_count=0,
+                max_node_count=ML_MAX_NODES,
+            ),
         )
         
         # Configure the cluster.
@@ -116,15 +135,18 @@ def create_gke_cluster(cluster_name, enable_spot=True):
             cluster=cluster
         )
         
-        print("\n🚀 Starting cluster creation...")
+        print(f"\n{'='*70}")
+        print("⚙️  Initiating cluster creation...")
         operation = cluster_manager_client.create_cluster(request=request)
         
         # Wait for the operation to complete
-        print("⏳ Waiting for cluster creation to complete...")
-        print("This typically takes 3-5 minutes for a small cluster.")
+        print(f"\n⏳ Cluster creation in progress...")
+        print(f"   ⏱️  Estimated time: 3-5 minutes")
+        print(f"   Operation ID: {operation.name.split('/')[-1]}")
         
         # Poll for operation completion
         operation_name = operation.name
+        status_dots = 0
         while True:
             op_request = container_v1.GetOperationRequest(
                 name=f"projects/{project}/locations/{ZONE}/operations/{operation_name.split('/')[-1]}"
@@ -132,14 +154,20 @@ def create_gke_cluster(cluster_name, enable_spot=True):
             current_op = cluster_manager_client.get_operation(request=op_request)
             
             if current_op.status == container_v1.Operation.Status.DONE:
-                print("✅ Cluster creation completed!")
+                print(f"\n{'='*70}")
+                print("✅ Cluster creation completed successfully!")
+                print(f"{'='*70}")
                 break
             elif current_op.status == container_v1.Operation.Status.ABORTING:
+                print(f"\n{'='*70}")
                 print("❌ Cluster creation failed!")
+                print(f"{'='*70}")
                 print(f"Error: {current_op.status_message}")
                 return False
             else:
-                print(f"Status: {current_op.status}")
+                dots = '.' * (status_dots % 4)
+                print(f"\r   {'🔄' if status_dots % 2 == 0 else '⚙️ '} Status: {current_op.status.name}{dots:<3}", end='', flush=True)
+                status_dots += 1
                 time.sleep(30)  # Check every 30 seconds
         
         # Get cluster info
@@ -148,40 +176,65 @@ def create_gke_cluster(cluster_name, enable_spot=True):
         )
         created_cluster = cluster_manager_client.get_cluster(request=get_request)
         
-        print(f"\n🎉 Cluster '{cluster_name}' created successfully!")
-        print(f"Cluster endpoint: {created_cluster.endpoint}")
-        print(f"Cluster status: {created_cluster.status}")
+        print(f"\n📊 Cluster Details:")
+        print(f"   Name: {cluster_name}")
+        print(f"   Endpoint: {created_cluster.endpoint}")
+        print(f"   Status: {created_cluster.status.name}")
+        print(f"   Kubernetes Version: {created_cluster.current_master_version}")
+        
         try:
-            node_count = sum((p.initial_node_count or 0) for p in (created_cluster.node_pools or []))
-            print(f"Node count (initial): {node_count}")
+            total_nodes = sum((p.initial_node_count or 0) for p in (created_cluster.node_pools or []))
+            print(f"\n🖥️  Node Pools:")
+            for pool in created_cluster.node_pools:
+                print(f"   • {pool.name}: {pool.initial_node_count} nodes ({pool.config.machine_type})")
+            print(f"   Total initial nodes: {total_nodes}")
         except Exception:
-            print("Node count: Unknown")
-        print(f"\n✅ Enabled features:")
-        print(f"   - Cost Management: Enabled for cost allocation tracking")
-        print(f"   - Workload Identity: {project}.svc.id.goog")
+            print("   Node count: Unknown")
+        
+        print(f"\n✅ Enabled Features:")
+        print(f"   • Cost Management: Enabled for cost allocation tracking")
+        print(f"   • Workload Identity: {project}.svc.id.goog")
+        print(f"   • Managed Prometheus: Disabled (cost optimization)")
         
         # Instructions for connecting
-        print(f"\n📝 To add this cluster to your kubeconfig and connect:")
-        print(f"╭─ Run this command ─────────────────────────────────────────────────╮")
-        print(f"│ gcloud container clusters get-credentials {cluster_name} --zone {ZONE} --project {project}")
-        print(f"╰────────────────────────────────────────────────────────────────────╯")
-        print(f"\n📋 After running the command above, you can use:")
-        print(f"   kubectl get nodes              # View cluster nodes")
-        print(f"   kubectl get pods --all-namespaces  # View all pods")
-        print(f"   kubectl cluster-info          # View cluster information")
-        print(f"\n💡 Node scaling commands:")
-        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 5  # Scale all pools to 5 nodes")
-        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 5 --pool default-pool  # Scale specific pool")
-        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 0  # Scale all pools to 0 (save money)")
-        print(f"\n🔒 ML pool taint: dedicated=ml:NoSchedule (only workloads with matching toleration can run there)")
+        print(f"\n{'='*70}")
+        print(f"📝 Next Steps")
+        print(f"{'='*70}")
+        print(f"\n🔗 Connect to your cluster:")
+        print(f"   gcloud container clusters get-credentials {cluster_name} \\")
+        print(f"     --zone {ZONE} --project {project}")
+        print(f"\n🎯 Verify cluster:")
+        print(f"   kubectl get nodes")
+        print(f"   kubectl get pods --all-namespaces")
+        print(f"   kubectl cluster-info")
+        
+        print(f"\n⚖️  Scale node pools:")
+        print(f"   # Scale all pools")
+        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 5")
+        
+        print(f"\n   # Scale specific pool")
+        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 5 --pool ml-pool")
+        
+        print(f"\n   # Scale to 0 to save money")
+        print(f"   python gke-cluster.py scale --name {cluster_name} --nodes 0")
+        
+        print(f"\n💡 Important Notes:")
+        print(f"   • ML pool has taint: dedicated=ml:NoSchedule")
+        print(f"   • Only workloads with matching toleration can run on ML nodes")
+        print(f"   • ML pool autoscales from 0 to {ML_MAX_NODES} nodes")
         
         # Cost estimation
-        print(f"\n💰 Estimated monthly cost (spot instances):")
-        print(f"   - default-pool (5 x t2d-standard-2 spot): ~$20-33/month")
-        print(f"   - ml-pool (3 x n2d-highcpu-4 spot): ~$15-25/month")
-        print(f"   - 100GB standard persistent disk: ~$4/month")
-        print(f"   - Total estimated: ~$39-62/month")
-        print(f"   Note: Spot instances can be terminated, but offer 60-91% cost savings!")
+        print(f"\n{'='*70}")
+        print(f"💰 Cost Estimation (Spot Instances)")
+        print(f"{'='*70}")
+        print(f"   Default Pool ({NODE_COUNT} x {MACHINE_TYPE}): ~$20-33/month")
+        print(f"   ML Pool ({NODE_COUNT} x {MACHINE_TYPE_ML}):     ~$15-25/month")
+        print(f"   Persistent Disk (100GB standard):   ~$4/month")
+        print(f"   " + "-" * 50)
+        print(f"   Total Estimated Cost:               ~$39-62/month")
+        print(f"\n   ⚠️  Spot instances offer 60-91% savings but can be preempted")
+        print(f"   💡 Scale to 0 nodes when not in use to minimize costs")
+        print(f"\n{'='*70}")
         
         return True
         
