@@ -12,9 +12,7 @@ else
 fi
 
 echo "📦 Installing Gateway API CRDs..."
-kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml"
-
-echo "🚀 Installing cert-manager via Helm..."
+kubectl kustomize "https://github.com/nginx/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v2.2.0" | kubectl apply -f -
 
 # Install cert-manager from jetstack repository and enable Gateway API integration
 helm upgrade --install \

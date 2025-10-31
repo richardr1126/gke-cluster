@@ -19,8 +19,10 @@ helm upgrade --install cockroachdb cockroachdb/cockroachdb \
   --set statefulset.resources.requests.cpu="250m" \
   --set statefulset.resources.requests.memory="512Mi" \
   --set statefulset.resources.limits.cpu="500m" \
-  --set statefulset.resources.limits.memory="1Gi" \
-  --wait
+  --set statefulset.resources.limits.memory="1Gi"
+
+echo "⏳ Waiting for CockroachDB pods to be ready..."
+kubectl wait --for=condition=Ready pod cockroachdb-2 -n cockroachdb --timeout=10m
 
 # Print instructions to connect to the database
 echo "✅ CockroachDB installed successfully!"
