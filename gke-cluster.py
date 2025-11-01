@@ -26,9 +26,9 @@ ZONE = "us-central1-b"  # Single zone for cost optimization
 MACHINE_TYPE = "t2d-standard-2"  # Ultra-low-cost machine (2 vCPUs, 8GB RAM)
 MACHINE_TYPE_ML = "n2d-highcpu-4"  # Compute-optimized for ML inference (4 vCPUs, 4GB RAM)
 NODE_COUNT = 3  # Start with 3 nodes for cost optimization
-ML_MAX_NODES = 9  # Max nodes for ML pool autoscaling
+ML_MAX_NODES = 6  # Max nodes for ML pool autoscaling
 DISK_SIZE_GB = 20  # Minimum disk size
-DISK_SIZE_GB_ML = 80  # Larger disk for ML node pool
+DISK_SIZE_GB_ML = 50  # Larger disk for ML node pool
 DISK_TYPE = "pd-standard"  # Standard persistent disk (cheapest)
 
 def create_gke_cluster(cluster_name, enable_spot=True):

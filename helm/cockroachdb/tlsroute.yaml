@@ -1,0 +1,22 @@
+# CockroachDB TLS Passthrough Configuration
+# This creates a TLSRoute for accessing CockroachDB UI
+# Using TLS passthrough to forward encrypted traffic directly to CockroachDB
+
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
+metadata:
+  name: cockroachdb-ui
+  namespace: cockroachdb
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: cockroachdb.richardr.dev
+spec:
+  parentRefs:
+  - name: nginx
+    namespace: nginx-gateway
+    sectionName: tls
+  hostnames:
+  - "cockroachdb.richardr.dev"
+  rules:
+  - backendRefs:
+    - name: cockroachdb-public
+      port: 8080

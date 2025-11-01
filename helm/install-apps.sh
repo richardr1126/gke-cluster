@@ -11,8 +11,8 @@ else
   exit 1
 fi
 
-echo "📦 Installing Gateway API CRDs..."
-kubectl kustomize "https://github.com/nginx/nginx-gateway-fabric/config/crd/gateway-api/standard?ref=v2.2.0" | kubectl apply -f -
+echo "📦 Installing Gateway API CRDs (including experimental)..."
+kubectl kustomize "https://github.com/nginx/nginx-gateway-fabric/config/crd/gateway-api/experimental?ref=v2.2.0" | kubectl apply -f -
 
 # Install cert-manager from jetstack repository and enable Gateway API integration
 helm upgrade --install \
@@ -41,7 +41,7 @@ helm upgrade --install external-dns external-dns/external-dns --version 1.15.2 \
   --set env[0].name=CF_API_TOKEN \
   --set env[0].valueFrom.secretKeyRef.name=cloudflare-dns \
   --set env[0].valueFrom.secretKeyRef.key=cloudflare_api_token \
-  --set sources='{service,ingress,gateway-httproute,gateway-grpcroute}' \
+  --set sources='{service,ingress,gateway-httproute,gateway-grpcroute,gateway-tlsroute}' \
   --wait
 
 echo "🚀 Installing NGINX Gateway Fabric via Helm..."
@@ -49,7 +49,8 @@ helm upgrade --install ngf oci://ghcr.io/nginx/charts/nginx-gateway-fabric --cre
   --set nginxGateway.resources.requests.cpu="100m" \
   --set nginxGateway.resources.requests.memory="128Mi" \
   --set nginxGateway.resources.limits.cpu="200m" \
-  --set nginxGateway.resources.limits.memory="256Mi"
+  --set nginxGateway.resources.limits.memory="256Mi" \
+  --set nginxGateway.gwAPIExperimentalFeatures.enable=true
 
 echo "⏳ Waiting for NGINX Gateway Fabric to be ready..."
 kubectl wait --timeout=5m -n nginx-gateway deployment/ngf-nginx-gateway-fabric --for=condition=Available
@@ -86,6 +87,17 @@ spec:
     allowedRoutes:
         namespaces:
           from: All
+  - name: tls
+    hostname: "cockroachdb.richardr.dev"
+    protocol: TLS
+    port: 443
+    tls:
+      mode: Passthrough
+    allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+        - kind: TLSRoute
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate

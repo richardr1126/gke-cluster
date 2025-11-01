@@ -3,6 +3,10 @@
 # Simple script to install CockroachDB via Helm
 set -e
 
+# Set local dir
+DIR=$(dirname "$0")
+cd "$DIR" || exit 1
+
 echo "📦 Adding CockroachDB Helm repository..."
 helm repo add cockroachdb https://charts.cockroachdb.com/
 helm repo update
@@ -26,3 +30,10 @@ kubectl wait --for=condition=Ready pod cockroachdb-2 -n cockroachdb --timeout=10
 
 # Print instructions to connect to the database
 echo "✅ CockroachDB installed successfully!"
+
+# Create tlsroute for CockroachDB UI
+echo "🚪 Creating CockroachDB UI TLSRoute resource..."
+kubectl apply -f tlsroute.yaml
+
+# Print instruction for visting url at https://cockroachdb.richardr.dev
+echo "🌐 You can now access the CockroachDB UI at https://cockroachdb.richardr.dev using a secure SQL account"

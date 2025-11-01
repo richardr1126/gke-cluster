@@ -9,6 +9,7 @@ cockroachdb/
 ├── create-user-certs.sh    # Client certificate generation
 ├── connect-db.sh           # Database connection helper
 ├── client-secure.yaml      # Secure client pod template
+├── tlsroute.yaml           # TLSRoute for external UI access
 └── client-certs/          # Generated client certificates (gitignored)
     ├── ca.crt             # Certificate Authority
     ├── client.gke.crt     # Client certificate for 'gke' user
@@ -59,6 +60,25 @@ This script:
 5. Cleans up the temporary pod
 
 **Important**: Client certificates completely replace password authentication. When using certificates, no password is needed.
+
+## External Access
+
+### CockroachDB UI
+
+The CockroachDB Admin UI is accessible externally via TLS passthrough:
+
+**URL**: https://cockroachdb.richardr.dev
+
+The `tlsroute.yaml` configures a Gateway API TLSRoute that:
+- Routes traffic from the NGINX Gateway to CockroachDB UI (port 8080)
+- Uses TLS passthrough to forward encrypted traffic directly
+- Managed by external-dns for automatic DNS configuration
+
+To apply or update the TLSRoute:
+
+```bash
+kubectl apply -f tlsroute.yaml
+```
 
 ### Connect to Database
 
