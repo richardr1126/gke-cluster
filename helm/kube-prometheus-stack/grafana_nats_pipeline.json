@@ -1,0 +1,162 @@
+{
+  "uid": "nats-pipeline-overview",
+  "title": "NATS Pipeline Overview",
+  "schemaVersion": 36,
+  "version": 1,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Firehose - NATS Connected",
+      "id": 1,
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "sum(nats_connected)", "refId": "A", "legendFormat": "Connected" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" } }
+    },
+    {
+      "type": "stat",
+      "title": "Stream Processor - NATS Connected",
+      "id": 2,
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "sum(stream_processor_nats_connected)", "refId": "A", "legendFormat": "Connected" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Message Queue Size",
+      "id": 12,
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "stream_processor_message_queue_size", "refId": "A", "legendFormat": "{{pod}}" } ],
+      "options": {}
+    },
+    {
+      "type": "piechart",
+      "title": "Topic Predictions",
+      "id": 16,
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "sum(increase(stream_processor_topic_predictions_total[5m])) by (topic)", "refId": "A", "legendFormat": "{{topic}}" } ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"]
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Firehose Messages / sec",
+      "id": 3,
+      "gridPos": { "x": 0, "y": 4, "w": 8, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "firehose_messages_per_second", "refId": "A", "format": "time_series", "legendFormat": "{{pod}}" } ],
+      "options": {}
+    },
+    {
+      "type": "timeseries",
+      "title": "Firehose Events / sec",
+      "id": 5,
+      "gridPos": { "x": 8, "y": 4, "w": 8, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "firehose_events_per_second", "refId": "A", "legendFormat": "{{pod}}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Firehose - Total Operations",
+      "id": 7,
+      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "increase(nats_firehose_operations_total[5m])", "refId": "A", "legendFormat": "{{pod}}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Processor Throughput (posts/sec)",
+      "id": 4,
+      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "rate(stream_processor_posts_processed_total[1m])", "refId": "A", "legendFormat": "{{pod}}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Posts Published (stream_processor)",
+      "id": 6,
+      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "increase(stream_processor_posts_published_total[5m])", "refId": "A", "legendFormat": "{{pod}}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Processor - Processing Duration (p50/p90/p99)",
+      "id": 9,
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "histogram_quantile(0.5, sum(rate(stream_processor_processing_duration_seconds_bucket[5m])) by (le))", "refId": "A", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.9, sum(rate(stream_processor_processing_duration_seconds_bucket[5m])) by (le))", "refId": "B", "legendFormat": "p90" },
+        { "expr": "histogram_quantile(0.99, sum(rate(stream_processor_processing_duration_seconds_bucket[5m])) by (le))", "refId": "C", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Model Inference Duration (p90) by model",
+      "id": 10,
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "histogram_quantile(0.9, sum(rate(stream_processor_model_inference_duration_seconds_bucket[5m])) by (le, model))", "refId": "A", "legendFormat": "{{model}}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Sentiment Predictions by label",
+      "id": 13,
+      "gridPos": { "x": 0, "y": 22, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "sum(increase(stream_processor_sentiment_predictions_total[5m])) by (sentiment)", "refId": "A", "legendFormat": "{{sentiment}}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Topic Predictions by topic",
+      "id": 14,
+      "gridPos": { "x": 12, "y": 22, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "sum(increase(stream_processor_topic_predictions_total[5m])) by (topic)", "refId": "A", "legendFormat": "{{topic}}" } ]
+    },
+    {
+      "type": "heatmap",
+      "title": "Sentiment Confidence Distribution",
+      "id": 15,
+      "gridPos": { "x": 0, "y": 28, "w": 24, "h": 7 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "sum(rate(stream_processor_sentiment_confidence_bucket[5m])) by (le)", "refId": "A", "legendFormat": "{{le}}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Stream Processor - Error count by type",
+      "id": 11,
+      "gridPos": { "x": 0, "y": 35, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "sum(increase(stream_processor_errors_total[5m])) by (error_type)", "refId": "A", "legendFormat": "{{error_type}}" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Firehose Publish Errors",
+      "id": 8,
+      "gridPos": { "x": 12, "y": 35, "w": 12, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "increase(nats_firehose_publish_errors_total[5m])", "refId": "A", "legendFormat": "{{pod}}" } ]
+    }
+  ],
+  "templating": { "list": [] },
+  "annotations": { "list": [ { "builtIn": 1, "datasource": "-- Grafana --", "enable": true, "name": "Annotations & Events", "type": "dashboard" } ] }
+}

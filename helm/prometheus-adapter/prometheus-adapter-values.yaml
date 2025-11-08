@@ -1,0 +1,26 @@
+# Prometheus Adapter configuration for custom metrics
+prometheus:
+  url: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local
+  port: 9090
+
+rules:
+  default: false  # Disable default rules
+  custom:
+  - seriesQuery: 'stream_processor_message_queue_size'
+    resources:
+      overrides:
+        namespace: {resource: "namespace"}
+        pod: {resource: "pod"}
+    name:
+      matches: "^(.*)$"
+      as: "stream_processor_message_queue_size"
+    metricsQuery: 'avg(<<.Series>>{<<.LabelMatchers>>}) by (<<.GroupBy>>)'
+
+# Resource requests/limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi

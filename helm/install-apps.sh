@@ -177,7 +177,12 @@ spec:
 EOF
 
 echo "✅ cert-manager, NGINX Gateway Fabric, and cluster issuers installed successfully!"
-echo ""
+
+echo "Starting Prometheus Stack installation script..."
+./kube-prometheus-stack/install.sh
+
+echo "Starting Prometheus Adapter installation script..."
+./prometheus-adapter/install.sh
 
 echo "Starting NATS JetStream installation script..."
 ./nats/install.sh

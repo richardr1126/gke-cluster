@@ -1,0 +1,16 @@
+namespaceOverride: "monitoring"
+
+grafana:
+  adminUser: admin
+  adminPassword: prom-operator
+  ingress:
+    enabled: false
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+prometheusOperator:
+  admissionWebhooks:
+    certManager:
+      enabled: true
