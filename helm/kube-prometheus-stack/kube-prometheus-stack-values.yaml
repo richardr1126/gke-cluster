@@ -5,6 +5,11 @@ grafana:
   adminPassword: prom-operator
   ingress:
     enabled: false
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
 
 prometheus:
   prometheusSpec:

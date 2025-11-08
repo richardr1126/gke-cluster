@@ -1,6 +1,10 @@
 version = 1
 revision = 3
 requires-python = ">=3.13"
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version < '3.14'",
+]
 
 [[package]]
 name = "cachetools"
@@ -56,11 +60,15 @@ name = "gke-cluster"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "google-cloud-compute" },
     { name = "google-cloud-container" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "google-cloud-container", specifier = ">=2.59.0" }]
+requires-dist = [
+    { name = "google-cloud-compute", specifier = ">=1.40.0" },
+    { name = "google-cloud-container", specifier = ">=2.59.0" },
+]
 
 [[package]]
 name = "google-api-core"
@@ -96,6 +104,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9e/9b/e92ef23b84fa10a64ce4831390b7a4c2e53c0132568d99d4ae61d04c8855/google_auth-2.40.3.tar.gz", hash = "sha256:500c3a29adedeb36ea9cf24b8d10858e152f2412e3ca37829b3fa18e33d63b77", size = 281029, upload-time = "2025-06-04T18:04:57.577Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/17/63/b19553b658a1692443c62bd07e5868adaa0ad746a0751ba62c59568cd45b/google_auth-2.40.3-py2.py3-none-any.whl", hash = "sha256:1370d4593e86213563547f97a92752fc658456fe4514c809544f330fed45a7ca", size = 216137, upload-time = "2025-06-04T18:04:55.573Z" },
+]
+
+[[package]]
+name = "google-cloud-compute"
+version = "1.40.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/92/c0/21fe9a8cadc0f8455b98e8e5ca8a3866b5ad745960023705b4f23d7a2aad/google_cloud_compute-1.40.0.tar.gz", hash = "sha256:6a5ca519ac82caafc0a8600b1aa724d22fc00255501e1f99ff7a5907db73e011", size = 4550048, upload-time = "2025-10-17T02:34:10.995Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ce/f1/202eec05ce8e5c6a6a3e77f45b8e5625095ca7840b9a7f4927a776c35c9b/google_cloud_compute-1.40.0-py3-none-any.whl", hash = "sha256:e0181c2a9a44a4797d6888f550f088e5257e7700d93cb98a31eb1ed2c5086ee6", size = 3505474, upload-time = "2025-10-17T02:31:32.725Z" },
 ]
 
 [[package]]

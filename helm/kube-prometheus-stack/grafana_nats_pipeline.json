@@ -57,28 +57,48 @@
     },
     {
       "type": "timeseries",
-      "title": "Firehose Messages / sec",
-      "id": 3,
-      "gridPos": { "x": 0, "y": 4, "w": 8, "h": 6 },
+      "title": "Firehose Events / sec",
+      "id": 5,
+      "gridPos": { "x": 0, "y": 4, "w": 5, "h": 6 },
       "datasource": "Prometheus",
-      "targets": [ { "expr": "firehose_messages_per_second", "refId": "A", "format": "time_series", "legendFormat": "{{pod}}" } ],
-      "options": {}
+      "targets": [ { "expr": "firehose_events_per_second", "refId": "A", "legendFormat": "{{pod}}" } ],
+      "options": { "legend": { "showLegend": false } }
     },
     {
       "type": "timeseries",
-      "title": "Firehose Events / sec",
-      "id": 5,
-      "gridPos": { "x": 8, "y": 4, "w": 8, "h": 6 },
+      "title": "Firehose Messages / sec",
+      "id": 3,
+      "gridPos": { "x": 5, "y": 4, "w": 5, "h": 6 },
       "datasource": "Prometheus",
-      "targets": [ { "expr": "firehose_events_per_second", "refId": "A", "legendFormat": "{{pod}}" } ]
+      "targets": [ { "expr": "firehose_messages_per_second", "refId": "A", "format": "time_series", "legendFormat": "{{pod}}" } ],
+      "options": { "legend": { "showLegend": false } }
     },
     {
       "type": "timeseries",
       "title": "Firehose - Total Operations",
       "id": 7,
-      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 6 },
+      "gridPos": { "x": 10, "y": 4, "w": 5, "h": 6 },
       "datasource": "Prometheus",
-      "targets": [ { "expr": "increase(nats_firehose_operations_total[5m])", "refId": "A", "legendFormat": "{{pod}}" } ]
+      "targets": [ { "expr": "increase(nats_firehose_operations_total[5m])", "refId": "A", "legendFormat": "{{pod}}" } ],
+      "options": { "legend": { "showLegend": false } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Total Processor Throughput (posts/sec)",
+      "id": 17,
+      "gridPos": { "x": 15, "y": 4, "w": 4, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "sum(rate(stream_processor_posts_processed_total[1m]))", "refId": "A", "legendFormat": "Total" } ],
+      "options": { "legend": { "showLegend": false } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Total Posts Published (stream_processor)",
+      "id": 18,
+      "gridPos": { "x": 19, "y": 4, "w": 5, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [ { "expr": "sum(increase(stream_processor_posts_published_total[5m]))", "refId": "A", "legendFormat": "Total" } ],
+      "options": { "legend": { "showLegend": false } }
     },
     {
       "type": "timeseries",
@@ -154,7 +174,8 @@
       "id": 8,
       "gridPos": { "x": 12, "y": 35, "w": 12, "h": 6 },
       "datasource": "Prometheus",
-      "targets": [ { "expr": "increase(nats_firehose_publish_errors_total[5m])", "refId": "A", "legendFormat": "{{pod}}" } ]
+      "targets": [ { "expr": "increase(nats_firehose_publish_errors_total[5m])", "refId": "A", "legendFormat": "{{pod}}" } ],
+      "options": { "legend": { "showLegend": false } }
     }
   ],
   "templating": { "list": [] },

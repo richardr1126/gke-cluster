@@ -22,5 +22,14 @@ echo "🌐 Configuring Grafana HTTPRoute..."
 # Apply Grafana HTTPRoute
 kubectl apply -f ./httproute.yaml
 
+echo "📊 Installing NATS Pipeline Dashboard..."
+# Create ConfigMap from JSON file
+kubectl create configmap nats-pipeline-dashboard \
+  --from-file=nats-pipeline-overview.json=./grafana_nats_pipeline.json \
+  --namespace=monitoring \
+  --dry-run=client -o yaml | \
+  kubectl label --local -f - grafana_dashboard=1 -o yaml | \
+  kubectl apply -f -
+
 # Success
 echo "✅ Prometheus Stack installed successfully!"
