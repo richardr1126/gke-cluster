@@ -46,13 +46,14 @@ This script creates a Google Kubernetes Engine (GKE) cluster optimized for cost 
    ```
 
 2. **Python Dependencies**: Install required packages
-   ```bash
-   # Install from pyproject.toml
-   pip install -e .
-   
-   # Or install manually
-   pip install google-cloud-container google-cloud-compute
-   ```
+    ```bash
+    # uv is the recommended way to install dependencies
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    
+    # Install dependencies and run
+    uv sync --frozen
+    source .venv/bin/activate
+    ```
 
 3. **Enable APIs**: Make sure the following APIs are enabled
    ```bash
