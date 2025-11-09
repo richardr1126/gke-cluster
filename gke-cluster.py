@@ -100,53 +100,25 @@ def create_cloud_nat(cluster_name):
                 print(f"   ⚠️  Router creation status: {result.status}")
                 time.sleep(5)
         
-        # Get the router to add NAT
-        router = routers_client.get(
-            project=project,
-            region=REGION,
-            router=router_name
-        )
-        
         # Create Cloud NAT configuration
         print(f"\n⚙️  Creating Cloud NAT...")
-        nat_config = compute_v1.RouterNat(
-            name=nat_name,
-            nat_ip_allocate_option=compute_v1.RouterNat.NatIpAllocateOption.AUTO_ONLY,
-            source_subnetwork_ip_ranges_to_nat=compute_v1.RouterNat.SourceSubnetworkIpRangesToNat.ALL_SUBNETWORKS_ALL_IP_RANGES,
-        )
         
-        # Add NAT to router's NAT list
-        if router.nats:
-            router.nats.append(nat_config)
-        else:
-            router.nats = [nat_config]
+        # Use subprocess to call gcloud directly as the API method is unreliable
+        import subprocess
+        result = subprocess.run([
+            'gcloud', 'compute', 'routers', 'nats', 'create', nat_name,
+            '--router', router_name,
+            '--region', REGION,
+            '--auto-allocate-nat-external-ips',
+            '--nat-all-subnet-ip-ranges',
+            '--project', project
+        ], capture_output=True, text=True)
         
-        # Update router with NAT configuration using patch
-        update_operation = routers_client.patch(
-            project=project,
-            region=REGION,
-            router=router_name,
-            router_resource=router
-        )
+        if result.returncode != 0:
+            print(f"   ❌ NAT creation failed: {result.stderr}")
+            raise Exception(f"NAT creation failed: {result.stderr}")
         
-        print(f"   ⏳ Waiting for NAT configuration...")
-        while True:
-            result = region_operations_client.get(
-                project=project,
-                region=REGION,
-                operation=update_operation.name.split('/')[-1]
-            )
-            if result.status == compute_v1.Operation.Status.DONE:
-                if result.error:
-                    print(f"   ❌ NAT creation failed: {result.error.errors}")
-                    raise Exception(f"NAT creation failed: {result.error}")
-                print(f"   ✅ Cloud NAT created")
-                break
-            elif result.status == compute_v1.Operation.Status.RUNNING:
-                time.sleep(5)
-            else:
-                print(f"   ⚠️  NAT configuration status: {result.status}")
-                time.sleep(5)
+        print(f"   ✅ Cloud NAT created")
         
         print(f"\n{'='*70}")
         print(f"✅ Cloud NAT Setup Complete!")
@@ -216,6 +188,7 @@ def create_gke_cluster(cluster_name, enable_spot=True):
         # Configure ML node config optimized for CPU inference (ONNX INT8 models)
         # n2d-highcpu-4: 4 vCPUs, 4GB RAM, AMD EPYC Rome for good INT8 performance
         # Disable external IPs to save on quota (use Cloud NAT for egress)
+        # Enable GCFS (Google Container File System) for image streaming
         node_config_ml = container_v1.NodeConfig(
             machine_type=MACHINE_TYPE_ML,
             disk_size_gb=DISK_SIZE_GB_ML,
@@ -229,6 +202,9 @@ def create_gke_cluster(cluster_name, enable_spot=True):
                 )
             ],
             image_type="COS_CONTAINERD",
+            gcfs_config=container_v1.GcfsConfig(
+                enabled=True,
+            ),
         )
         
         # Configure default node pool with no autoscaling, starting with 0 nodes
@@ -418,7 +394,37 @@ def delete_cluster(cluster_name):
         print(f"🗑️  Deleting cluster '{cluster_name}'")
         print(f"{'='*70}")
         
-        # First, list and delete PV disks before deleting the cluster
+        # Delete the cluster first
+        print(f"\n🗑️  Deleting GKE cluster...")
+        delete_request = container_v1.DeleteClusterRequest(
+            name=f"projects/{project}/locations/{ZONE}/clusters/{cluster_name}"
+        )
+        
+        operation = cluster_manager_client.delete_cluster(request=delete_request)
+        
+        print("   ⏳ Waiting for cluster deletion to complete...")
+        operation_name = operation.name
+        status_dots = 0
+        while True:
+            op_request = container_v1.GetOperationRequest(
+                name=f"projects/{project}/locations/{ZONE}/operations/{operation_name.split('/')[-1]}"
+            )
+            current_op = cluster_manager_client.get_operation(request=op_request)
+            
+            if current_op.status == container_v1.Operation.Status.DONE:
+                print("   ✅ Cluster deleted successfully!")
+                break
+            elif current_op.status == container_v1.Operation.Status.ABORTING:
+                print("   ❌ Cluster deletion failed!")
+                print(f"   Error: {current_op.status_message}")
+                return False
+            else:
+                dots = '.' * (status_dots % 4)
+                print(f"\r   Status: {current_op.status.name}{dots:<3}", end='', flush=True)
+                status_dots += 1
+                time.sleep(10)
+        
+        # Now delete PV disks after cluster is deleted
         print(f"\n🔍 Checking for persistent disks (PVCs)...")
         try:
             disks_list = disks_client.list(project=project, zone=ZONE)
@@ -462,36 +468,7 @@ def delete_cluster(cluster_name):
                 
         except Exception as e:
             print(f"   ⚠️  Could not check for persistent disks: {e}")
-        
-        # Delete the cluster
-        print(f"\n🗑️  Deleting GKE cluster...")
-        delete_request = container_v1.DeleteClusterRequest(
-            name=f"projects/{project}/locations/{ZONE}/clusters/{cluster_name}"
-        )
-        
-        operation = cluster_manager_client.delete_cluster(request=delete_request)
-        
-        print("   ⏳ Waiting for cluster deletion to complete...")
-        operation_name = operation.name
-        status_dots = 0
-        while True:
-            op_request = container_v1.GetOperationRequest(
-                name=f"projects/{project}/locations/{ZONE}/operations/{operation_name.split('/')[-1]}"
-            )
-            current_op = cluster_manager_client.get_operation(request=op_request)
-            
-            if current_op.status == container_v1.Operation.Status.DONE:
-                print("   ✅ Cluster deleted successfully!")
-                break
-            elif current_op.status == container_v1.Operation.Status.ABORTING:
-                print("   ❌ Cluster deletion failed!")
-                print(f"   Error: {current_op.status_message}")
-                return False
-            else:
-                dots = '.' * (status_dots % 4)
-                print(f"\r   Status: {current_op.status.name}{dots:<3}", end='', flush=True)
-                status_dots += 1
-                time.sleep(10)
+
         
         # Delete Cloud NAT and Router
         router_name = f"{cluster_name}-nat-router"

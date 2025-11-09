@@ -28,13 +28,25 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
     },
     {
-      "type": "timeseries",
-      "title": "Message Queue Size",
+      "type": "stat",
+      "title": "Message Queue Size (avg)",
       "id": 12,
       "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
       "datasource": "Prometheus",
-      "targets": [ { "expr": "stream_processor_message_queue_size", "refId": "A", "legendFormat": "{{pod}}" } ],
-      "options": {}
+      "targets": [ { "expr": "avg(stream_processor_message_queue_size)", "refId": "A", "legendFormat": "Average" } ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 501, "color": "yellow" },
+              { "value": 1000, "color": "red" }
+            ]
+          }
+        }
+      }
     },
     {
       "type": "piechart",
