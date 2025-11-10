@@ -388,14 +388,22 @@ def create_gke_cluster(cluster_name, enable_spot=True):
         return False
 
 def delete_cluster(cluster_name):
-    """Delete a GKE cluster and its associated Cloud NAT resources and PV disks."""
+    """Delete a GKE cluster and its associated Cloud NAT resources and PV disks.
+    
+    Each component is deleted independently, so partial failures don't stop cleanup.
+    """
+    print(f"\n{'='*70}")
+    print(f"🗑️  Deleting cluster '{cluster_name}'")
+    print(f"{'='*70}")
+    
+    cluster_deleted = False
+    disks_deleted = False
+    nat_deleted = False
+    router_deleted = False
+    
+    # Delete the cluster first
+    print(f"\n🗑️  Deleting GKE cluster...")
     try:
-        print(f"\n{'='*70}")
-        print(f"🗑️  Deleting cluster '{cluster_name}'")
-        print(f"{'='*70}")
-        
-        # Delete the cluster first
-        print(f"\n🗑️  Deleting GKE cluster...")
         delete_request = container_v1.DeleteClusterRequest(
             name=f"projects/{project}/locations/{ZONE}/clusters/{cluster_name}"
         )
@@ -413,137 +421,143 @@ def delete_cluster(cluster_name):
             
             if current_op.status == container_v1.Operation.Status.DONE:
                 print("   ✅ Cluster deleted successfully!")
+                cluster_deleted = True
                 break
             elif current_op.status == container_v1.Operation.Status.ABORTING:
                 print("   ❌ Cluster deletion failed!")
                 print(f"   Error: {current_op.status_message}")
-                return False
+                print(f"   Continuing with cleanup of associated resources...")
+                break
             else:
                 dots = '.' * (status_dots % 4)
                 print(f"\r   Status: {current_op.status.name}{dots:<3}", end='', flush=True)
                 status_dots += 1
                 time.sleep(10)
+    except Exception as e:
+        print(f"   ❌ Error deleting cluster: {e}")
+        print(f"   Continuing with cleanup of associated resources...")
+    
+    # Delete PV disks (independent operation)
+    print(f"\n🔍 Checking for persistent disks (PVCs)...")
+    try:
+        disks_list = disks_client.list(project=project, zone=ZONE)
+        cluster_disks = []
         
-        # Now delete PV disks after cluster is deleted
-        print(f"\n🔍 Checking for persistent disks (PVCs)...")
-        try:
-            disks_list = disks_client.list(project=project, zone=ZONE)
-            cluster_disks = []
+        for disk in disks_list:
+            # GKE PVCs are named with UUID pattern: pvc-*
+            # They're auto-created by GKE and have no external attachment after cluster deletion
+            if disk.name.startswith("pvc-") and not disk.users:
+                cluster_disks.append(disk.name)
+        
+        if cluster_disks:
+            print(f"   Found {len(cluster_disks)} orphaned persistent disk(s):")
+            for disk_name in cluster_disks:
+                print(f"   • {disk_name}")
             
-            for disk in disks_list:
-                # GKE PVCs are typically named with pattern: gke-{cluster_name}-pvc-*
-                if f"gke-{cluster_name}" in disk.name or cluster_name in disk.name:
-                    cluster_disks.append(disk.name)
-            
-            if cluster_disks:
-                print(f"   Found {len(cluster_disks)} persistent disk(s) from this cluster:")
-                for disk_name in cluster_disks:
-                    print(f"   • {disk_name}")
-                
-                print(f"\n🧹 Deleting persistent disks...")
-                for disk_name in cluster_disks:
-                    try:
-                        print(f"   Deleting disk: {disk_name}...")
-                        delete_disk_op = disks_client.delete(
+            print(f"\n🧹 Deleting orphaned persistent disks...")
+            for disk_name in cluster_disks:
+                try:
+                    print(f"   Deleting disk: {disk_name}...")
+                    delete_disk_op = disks_client.delete(
+                        project=project,
+                        zone=ZONE,
+                        disk=disk_name
+                    )
+                    
+                    # Wait for disk deletion
+                    while True:
+                        result = zone_operations_client.get(
                             project=project,
                             zone=ZONE,
-                            disk=disk_name
+                            operation=delete_disk_op.name.split('/')[-1]
                         )
-                        
-                        # Wait for disk deletion
-                        while True:
-                            result = zone_operations_client.get(
-                                project=project,
-                                zone=ZONE,
-                                operation=delete_disk_op.name.split('/')[-1]
-                            )
-                            if result.status == compute_v1.Operation.Status.DONE:
-                                print(f"   ✅ Disk '{disk_name}' deleted")
-                                break
-                            time.sleep(3)
-                    except Exception as e:
-                        print(f"   ⚠️  Could not delete disk '{disk_name}': {e}")
-            else:
-                print(f"   No persistent disks found for this cluster")
-                
-        except Exception as e:
-            print(f"   ⚠️  Could not check for persistent disks: {e}")
-
+                        if result.status == compute_v1.Operation.Status.DONE:
+                            print(f"   ✅ Disk '{disk_name}' deleted")
+                            disks_deleted = True
+                            break
+                        time.sleep(3)
+                except Exception as e:
+                    print(f"   ⚠️  Could not delete disk '{disk_name}': {e}")
+        else:
+            print(f"   No orphaned persistent disks found")
+            disks_deleted = True
+            
+    except Exception as e:
+        print(f"   ⚠️  Could not check for persistent disks: {e}")
+    
+    # Delete Cloud NAT and Router (independent operations)
+    router_name = f"{cluster_name}-nat-router"
+    nat_name = f"{cluster_name}-nat-config"
+    
+    print(f"\n🧹 Cleaning up Cloud NAT resources...")
+    try:
+        # Get router and remove NAT
+        router = routers_client.get(
+            project=project,
+            region=REGION,
+            router=router_name
+        )
         
-        # Delete Cloud NAT and Router
-        router_name = f"{cluster_name}-nat-router"
-        nat_name = f"{cluster_name}-nat-config"
+        # Remove NAT configuration
+        router.nats = []
+        update_op = routers_client.patch(
+            project=project,
+            region=REGION,
+            router=router_name,
+            router_resource=router
+        )
         
-        print(f"\n🧹 Cleaning up Cloud NAT resources...")
-        try:
-            # Get router and remove NAT
-            router = routers_client.get(
+        # Wait for NAT removal
+        while True:
+            result = region_operations_client.get(
                 project=project,
                 region=REGION,
-                router=router_name
+                operation=update_op.name.split('/')[-1]
             )
-            
-            # Remove NAT configuration
-            router.nats = []
-            update_op = routers_client.patch(
+            if result.status == compute_v1.Operation.Status.DONE:
+                break
+            time.sleep(3)
+        
+        print(f"   ✅ Cloud NAT '{nat_name}' deleted")
+        nat_deleted = True
+        
+        # Delete router
+        delete_op = routers_client.delete(
+            project=project,
+            region=REGION,
+            router=router_name
+        )
+        
+        # Wait for router deletion
+        while True:
+            result = region_operations_client.get(
                 project=project,
                 region=REGION,
-                router=router_name,
-                router_resource=router
+                operation=delete_op.name.split('/')[-1]
             )
-            
-            # Wait for NAT removal
-            while True:
-                result = region_operations_client.get(
-                    project=project,
-                    region=REGION,
-                    operation=update_op.name.split('/')[-1]
-                )
-                if result.status == compute_v1.Operation.Status.DONE:
-                    break
-                time.sleep(3)
-            
-            print(f"   ✅ Cloud NAT '{nat_name}' deleted")
-            
-            # Delete router
-            delete_op = routers_client.delete(
-                project=project,
-                region=REGION,
-                router=router_name
-            )
-            
-            # Wait for router deletion
-            while True:
-                result = region_operations_client.get(
-                    project=project,
-                    region=REGION,
-                    operation=delete_op.name.split('/')[-1]
-                )
-                if result.status == compute_v1.Operation.Status.DONE:
-                    break
-                time.sleep(3)
-            
-            print(f"   ✅ Cloud Router '{router_name}' deleted")
-            
-        except Exception as e:
-            print(f"   ⚠️  Could not delete Cloud NAT resources: {e}")
-            print(f"   You may want to delete them manually:")
-            print(f"   gcloud compute routers delete {router_name} --region={REGION}")
+            if result.status == compute_v1.Operation.Status.DONE:
+                break
+            time.sleep(3)
         
-        print(f"\n{'='*70}")
-        print(f"✅ Cleanup Complete!")
-        print(f"{'='*70}")
-        print(f"\n💡 All resources cleaned up:")
-        print(f"   • Persistent disks (PVCs)")
-        print(f"   • GKE cluster")
-        print(f"   • Cloud NAT configuration")
-        print(f"   • Cloud Router")
-        
-        return True
+        print(f"   ✅ Cloud Router '{router_name}' deleted")
+        router_deleted = True
         
     except Exception as e:
-        print(f"❌ Error deleting cluster: {e}")
-        return False
+        print(f"   ⚠️  Could not delete Cloud NAT resources: {e}")
+        print(f"   You may want to delete them manually:")
+        print(f"   gcloud compute routers delete {router_name} --region={REGION}")
+    
+    print(f"\n{'='*70}")
+    print(f"✅ Cleanup Complete!")
+    print(f"{'='*70}")
+    print(f"\n📊 Deletion Summary:")
+    print(f"   • GKE cluster:         {'✅' if cluster_deleted else '❌'}")
+    print(f"   • Persistent disks:    {'✅' if disks_deleted else '❌'}")
+    print(f"   • Cloud NAT:           {'✅' if nat_deleted else '❌'}")
+    print(f"   • Cloud Router:        {'✅' if router_deleted else '❌'}")
+    
+    # Return True if at least the cluster or disks were deleted
+    return cluster_deleted or disks_deleted or nat_deleted or router_deleted
 
 def scale_cluster(cluster_name, target_node_count=0, pool_name=None):
     """Scale node pool(s) in a GKE cluster to the specified number of nodes.
