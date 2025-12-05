@@ -187,5 +187,6 @@ echo "Starting Prometheus Adapter installation script..."
 echo "Starting NATS JetStream installation script..."
 ./nats/install.sh
 
-echo "Starting CockroachDB installation script..."
-./cockroachdb/install.sh
+echo "CockroachDB installation script is currently disabled."
+# echo "Starting CockroachDB installation script..."
+# ./cockroachdb/install.sh

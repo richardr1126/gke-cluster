@@ -506,8 +506,8 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
-          "expr": "increase(nats_firehose_operations_total[5m])",
-          "legendFormat": "{{pod}}",
+          "expr": "sum(nats_firehose_operations_total)",
+          "legendFormat": "Total",
           "refId": "A"
         }
       ],
@@ -773,7 +773,7 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
-          "expr": "sum(increase(stream_processor_posts_published_total[5m]))",
+          "expr": "sum(stream_processor_posts_published_total)",
           "legendFormat": "Total",
           "refId": "A"
         }
